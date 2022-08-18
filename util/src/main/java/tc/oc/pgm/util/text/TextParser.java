@@ -31,6 +31,9 @@ import org.bukkit.util.Vector;
 import tc.oc.pgm.util.LiquidMetal;
 import tc.oc.pgm.util.TimeUtils;
 import tc.oc.pgm.util.Version;
+import tc.oc.pgm.util.bukkit.BukkitUtils;
+import tc.oc.pgm.util.xml.Node;
+import tc.oc.pgm.util.xml.XMLUtils;
 
 /** A string parser that generates user-friendly error messages. */
 public final class TextParser {
@@ -424,6 +427,37 @@ public final class TextParser {
     }
 
     return LegacyComponentSerializer.legacyAmpersand().deserialize(text);
+  }
+
+  /**
+   * Parses text into a component
+   *
+   * <p>Accepts legacy formatting with "§" as the color character.
+   *
+   * <p>Accepts full qualified json strings as components.
+   *
+   * <p>This method is mainly for backwards compatability for {@link
+   * XMLUtils#parseFormattedText(Node, Component)}. Previously using {@link #parseComponent(String)}
+   * with the result from {@code parseFormattedText} would bug out when sent to older clients, since
+   * the LegacyComponentSerializer expects "&" but {@link BukkitUtils#colorize(String)}(Used in the
+   * XMLUtils method) results in using "§".
+   *
+   * @param text The text.
+   * @return a Component.
+   * @throws TextException If there is json present and it is invalid.
+   */
+  public static Component parseComponentSection(String text) {
+    checkNotNull(text, "cannot parse component from null");
+
+    if (text.startsWith("{\"") && text.endsWith("\"}")) {
+      try {
+        return GsonComponentSerializer.gson().deserialize(text);
+      } catch (JsonSyntaxException e) {
+        throw invalidFormat(text, Component.class, e);
+      }
+    }
+
+    return LegacyComponentSerializer.legacySection().deserialize(text);
   }
 
   /**

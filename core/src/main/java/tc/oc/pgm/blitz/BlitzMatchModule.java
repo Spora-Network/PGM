@@ -6,6 +6,7 @@ import static net.kyori.adventure.text.Component.translatable;
 import static net.kyori.adventure.title.Title.title;
 import static tc.oc.pgm.util.TimeUtils.fromTicks;
 
+import com.google.common.collect.ImmutableSet;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
@@ -85,9 +86,13 @@ public class BlitzMatchModule implements MatchModule, Listener {
   public void handleLeave(final PlayerPartyChangeEvent event) {
     int lives = this.lifeManager.getLives(event.getPlayer().getId());
     if (event.getOldParty() instanceof Competitor && lives > 0) {
-      if (event.getNewParty() != null && event.getNewParty() instanceof Competitor)
-        return; // Team switch
-      this.handleElimination(event.getPlayer(), (Competitor) event.getOldParty());
+      if (event.getNewParty() != null && event.getNewParty() instanceof Competitor) {
+        // Player switching teams, check if match needs to end
+        checkEnd();
+      } else {
+        // Player is going to obs, eliminate them
+        this.handleElimination(event.getPlayer(), (Competitor) event.getOldParty());
+      }
     }
   }
 
@@ -95,7 +100,7 @@ public class BlitzMatchModule implements MatchModule, Listener {
   public void handleJoin(final PlayerParticipationStartEvent event) {
     MatchPlayer player = event.getPlayer();
     TeamMatchModule tmm = player.getMatch().getModule(TeamMatchModule.class);
-    if (match.isRunning() && (tmm != null && !tmm.isForced(player))) {
+    if (match.isRunning() && (tmm == null || !tmm.isForced(player))) {
       event.cancel(
           translatable(
               "blitz.joinDenied", translatable("gamemode.blitz.name", NamedTextColor.AQUA)));
@@ -118,7 +123,7 @@ public class BlitzMatchModule implements MatchModule, Listener {
                           lives == 1 ? "misc.life" : "misc.lives",
                           NamedTextColor.AQUA,
                           text(lives))),
-                  Title.Times.of(Duration.ZERO, fromTicks(60), fromTicks(20))));
+                  Title.Times.times(Duration.ZERO, fromTicks(60), fromTicks(20))));
     }
   }
 
@@ -142,18 +147,25 @@ public class BlitzMatchModule implements MatchModule, Listener {
   }
 
   private void handleElimination(final MatchPlayer player, Competitor competitor) {
-    final BlitzPlayerEliminatedEvent eliminatedEvent =
-        new BlitzPlayerEliminatedEvent(player, competitor, player.getBukkit().getLocation());
+    if (!eliminatedPlayers.add(player.getBukkit().getUniqueId())) return;
 
-    // wait until the next tick to do this so stat recording and other stuff works
+    match.callEvent(
+        new BlitzPlayerEliminatedEvent(player, competitor, player.getBukkit().getLocation()));
+
+    checkEnd();
+  }
+
+  private void checkEnd() {
+    // Process eliminations within the same tick simultaneously, so that ties are properly detected
     match
         .getExecutor(MatchScope.RUNNING)
         .execute(
             () -> {
-              match.callEvent(eliminatedEvent);
-              if (player.getParty() instanceof Competitor) {
-                match.setParty(player, match.getDefaultParty());
-              }
+              ImmutableSet.copyOf(match.getParticipants()).stream()
+                  .filter(
+                      participating -> isPlayerEliminated(participating.getBukkit().getUniqueId()))
+                  .forEach(participating -> match.setParty(participating, match.getDefaultParty()));
+
               match.calculateVictory();
             });
   }

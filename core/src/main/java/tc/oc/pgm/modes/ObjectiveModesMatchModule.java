@@ -23,7 +23,7 @@ import tc.oc.pgm.api.match.MatchScope;
 import tc.oc.pgm.api.module.exception.ModuleLoadException;
 import tc.oc.pgm.countdowns.CountdownContext;
 import tc.oc.pgm.events.ListenerScope;
-import tc.oc.pgm.filters.dynamic.FilterMatchModule;
+import tc.oc.pgm.filters.FilterMatchModule;
 
 @ListenerScope(MatchScope.LOADED)
 public class ObjectiveModesMatchModule implements MatchModule, Listener {
@@ -128,13 +128,15 @@ public class ObjectiveModesMatchModule implements MatchModule, Listener {
 
   @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
   public void onObjectiveModeChange(ObjectiveModeChangeEvent event) {
-    Component broadcast =
-        text()
-            .append(text("> > > > ", NamedTextColor.DARK_AQUA))
-            .append(text(event.getName(), NamedTextColor.DARK_RED))
-            .append(text(" < < < <", NamedTextColor.DARK_AQUA))
-            .build();
-    event.getMatch().sendMessage(broadcast);
-    event.getMatch().playSound(SOUND);
+    if (event.isVisible()) {
+      Component broadcast =
+          text()
+              .append(text("> > > > ", NamedTextColor.DARK_AQUA))
+              .append(text(event.getName(), NamedTextColor.DARK_RED))
+              .append(text(" < < < <", NamedTextColor.DARK_AQUA))
+              .build();
+      match.sendMessage(broadcast);
+      match.playSound(SOUND);
+    }
   }
 }

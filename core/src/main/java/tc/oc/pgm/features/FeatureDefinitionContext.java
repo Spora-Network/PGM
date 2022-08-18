@@ -1,21 +1,26 @@
 package tc.oc.pgm.features;
 
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import javax.annotation.Nullable;
 import org.jdom2.Element;
 import tc.oc.pgm.api.feature.FeatureDefinition;
 import tc.oc.pgm.api.feature.FeatureReference;
 import tc.oc.pgm.api.feature.FeatureValidation;
+import tc.oc.pgm.util.collection.ContextStore;
 import tc.oc.pgm.util.xml.InvalidXMLException;
 import tc.oc.pgm.util.xml.Node;
 
-public class FeatureDefinitionContext {
+public class FeatureDefinitionContext extends ContextStore<FeatureDefinition> {
 
   private final Set<FeatureDefinition> definitions = new HashSet<>();
-  private final Map<String, FeatureDefinition> byId = new HashMap<>();
   private final Map<FeatureDefinition, Element> definitionNodes = new HashMap<>();
   private final List<XMLFeatureReference<?>> references = new ArrayList<>();
   private final SetMultimap<FeatureReference<?>, FeatureValidation<?>> validations =
@@ -23,23 +28,6 @@ public class FeatureDefinitionContext {
 
   public static String parseId(Element node) {
     return node.getAttributeValue("id");
-  }
-
-  public FeatureDefinition get(String id) {
-    return byId.get(id);
-  }
-
-  /**
-   * Return a feature with the given ID and type, or null if no such feature exists. If the ID
-   * exists but is the wrong type, this method will still return null.
-   */
-  public <T extends FeatureDefinition> T get(String id, Class<T> type) {
-    FeatureDefinition definition = get(id);
-    return type.isInstance(definition) ? type.cast(definition) : null;
-  }
-
-  public <T extends FeatureDefinition> Iterable<T> getAll(Class<T> type) {
-    return Iterables.filter(definitions, type);
   }
 
   /** Return the XML element associated with the given feature */
@@ -56,9 +44,9 @@ public class FeatureDefinitionContext {
       throws InvalidXMLException {
     if (definitions.add(definition)) {
       if (id != null) {
-        FeatureDefinition old = byId.put(id, definition);
+        FeatureDefinition old = this.store.put(id, definition);
         if (old != null && old != definition) {
-          byId.put(id, old);
+          this.store.put(id, old);
           throw new InvalidXMLException(
               "The ID '" + id + "' is already in use by a different feature", node);
         }
@@ -139,14 +127,28 @@ public class FeatureDefinitionContext {
     List<InvalidXMLException> errors = new ArrayList<>();
     for (XMLFeatureReference<?> reference : references) {
       try {
-        reference.resolve();
-        for (FeatureValidation validation : validations.get(reference)) {
-          validation.validate(reference.get(), reference.getNode());
-        }
+        resolveReference(reference);
       } catch (InvalidXMLException e) {
         errors.add(e);
       }
     }
     return errors;
+  }
+
+  private <T extends FeatureDefinition> void resolveReference(XMLFeatureReference<T> reference)
+      throws InvalidXMLException {
+    Node node = reference.getNode(); // Get node prior to resolving
+    reference.resolve();
+
+    T value = reference.get();
+    for (FeatureValidation<?> validation : validations.get(reference)) {
+      //noinspection unchecked
+      ((FeatureValidation<T>) validation).validate(value, node);
+    }
+  }
+
+  @Override
+  public Collection<FeatureDefinition> getAll() {
+    return this.definitions;
   }
 }

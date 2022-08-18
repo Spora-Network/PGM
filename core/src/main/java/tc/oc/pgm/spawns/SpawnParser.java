@@ -8,9 +8,9 @@ import org.jdom2.Element;
 import tc.oc.pgm.api.filter.Filter;
 import tc.oc.pgm.api.map.MapProtos;
 import tc.oc.pgm.api.map.factory.MapFactory;
-import tc.oc.pgm.filters.AllFilter;
-import tc.oc.pgm.filters.StaticFilter;
-import tc.oc.pgm.filters.TeamFilter;
+import tc.oc.pgm.filters.matcher.StaticFilter;
+import tc.oc.pgm.filters.matcher.party.TeamFilter;
+import tc.oc.pgm.filters.operator.AllFilter;
 import tc.oc.pgm.kits.Kit;
 import tc.oc.pgm.points.PointParser;
 import tc.oc.pgm.points.PointProvider;
@@ -44,20 +44,27 @@ public class SpawnParser {
 
     if (factory.getProto().isOlderThan(MapProtos.MODULE_SUBELEMENT_VERSION)) {
       providers = this.pointParser.parse(el, attributes.providerAttributes);
-    } else {
+    }
+    // Must have <regions>, <region> or region attribute in proto 1.3.6 and above
+    else if (el.getChild("regions") != null
+        || el.getChild("region") != null
+        || el.getAttribute("region") != null) {
       providers =
           new ArrayList<>(
               pointParser.parseMultiProperty(el, attributes.providerAttributes, "region"));
       for (Element elRegions : XMLUtils.getChildren(el, "regions")) {
         providers.addAll(this.pointParser.parseChildren(elRegions, attributes.providerAttributes));
       }
+    } else {
+      throw new InvalidXMLException(
+          "all spawn regions must be enclosed inside <regions>, or use region attribute", el);
     }
 
     PointProvider provider;
     if (attributes.sequential) {
       provider = new SequentialPointProvider(providers);
-    } else if (attributes.spread) {
-      provider = new SpreadPointProvider(providers);
+    } else if (attributes.spread || attributes.spreadTeammates) {
+      provider = new SpreadPointProvider(providers, attributes.spreadTeammates);
     } else {
       provider = new RandomPointProvider(providers);
     }
@@ -94,6 +101,8 @@ public class SpawnParser {
 
     boolean sequential = XMLUtils.parseBoolean(el.getAttribute("sequential"), parent.sequential);
     boolean spread = XMLUtils.parseBoolean(el.getAttribute("spread"), parent.spread);
+    boolean spreadTeammates =
+        XMLUtils.parseBoolean(el.getAttribute("spread-teammates"), parent.spreadTeammates);
     boolean exclusive = XMLUtils.parseBoolean(el.getAttribute("exclusive"), parent.exclusive);
     boolean persistent = XMLUtils.parseBoolean(el.getAttribute("persistent"), parent.persistent);
 
@@ -123,6 +132,7 @@ public class SpawnParser {
         && kit == parent.kit
         && sequential == parent.sequential
         && spread == parent.spread
+        && spreadTeammates == parent.spreadTeammates
         && exclusive == parent.exclusive
         && persistent == parent.persistent
         && !newFilters) {
@@ -135,6 +145,7 @@ public class SpawnParser {
           kit,
           sequential,
           spread,
+          spreadTeammates,
           exclusive,
           persistent);
     }

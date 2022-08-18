@@ -67,6 +67,7 @@ public class Destroyable extends TouchableGoal<DestroyableFactory>
   protected final FiniteBlockRegion blockRegion;
   protected final Set<SingleMaterialMatcher> materialPatterns = new HashSet<>();
   protected final Set<MaterialData> materials = new HashSet<>();
+  protected final boolean isShared;
 
   // The percentage of blocks that must be broken for the entire Destroyable to be destroyed.
   protected double destructionRequired;
@@ -127,6 +128,7 @@ public class Destroyable extends TouchableGoal<DestroyableFactory>
     }
 
     this.recalculateHealth();
+    this.isShared = match.getCompetitors().stream().filter(this::canComplete).count() != 1;
   }
 
   // Remove @Nullable
@@ -358,17 +360,19 @@ public class Destroyable extends TouchableGoal<DestroyableFactory>
           this.lastSparkTime = now;
 
           // Spawn a firework where the block was
-          Firework firework =
-              FireworkMatchModule.spawnFirework(
-                  blockLocation,
-                  FireworkEffect.builder()
-                      .with(FireworkEffect.Type.BURST)
-                      .withFlicker()
-                      .withColor(this.getOwner().getFullColor())
-                      .build(),
-                  0);
+          if (PGM.get().getConfiguration().showFireworks()) {
+            Firework firework =
+                FireworkMatchModule.spawnFirework(
+                    blockLocation,
+                    FireworkEffect.builder()
+                        .with(FireworkEffect.Type.BURST)
+                        .withFlicker()
+                        .withColor(this.getOwner().getFullColor())
+                        .build(),
+                    0);
 
-          NMSHacks.skipFireworksLaunch(firework);
+            NMSHacks.skipFireworksLaunch(firework);
+          }
 
           // Players more than 64m away will not see or hear the fireworks, so just play the sound
           // for them
@@ -515,7 +519,7 @@ public class Destroyable extends TouchableGoal<DestroyableFactory>
 
   @Override
   public String renderSidebarStatusText(@Nullable Competitor competitor, Party viewer) {
-    if (this.getShowProgress() || viewer.isObserving()) {
+    if (this.getShowProgress() || (viewer.isObserving() && this.getBreaksRequired() > 1)) {
       String text = this.renderCompletion();
       if (PGM.get().getConfiguration().showProximity()) {
         String precise = this.renderPreciseCompletion();
@@ -540,7 +544,7 @@ public class Destroyable extends TouchableGoal<DestroyableFactory>
 
   @Override
   public boolean isShared() {
-    return false;
+    return isShared;
   }
 
   @Override

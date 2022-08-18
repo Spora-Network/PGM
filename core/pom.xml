@@ -8,7 +8,7 @@
 
     <parent>
         <relativePath>../pom.xml</relativePath>
-        <version>0.12-SNAPSHOT</version>
+        <version>0.14-SNAPSHOT</version>
         <groupId>tc.oc.pgm</groupId>
         <artifactId>PGM</artifactId>
     </parent>
@@ -22,7 +22,7 @@
         <dependency>
             <groupId>tc.oc.pgm</groupId>
             <artifactId>util</artifactId>
-            <version>0.12-SNAPSHOT</version>
+            <version>0.14-SNAPSHOT</version>
         </dependency>
     </dependencies>
     <build>
@@ -52,6 +52,7 @@
                             <include>org.eclipse.jgit:org.eclipse.jgit:*</include>
                             <include>org.slf4j:slf4j-api:*</include>
                             <include>fr.minuskube.inv:smart-invs</include>
+                            <include>net.objecthunter:exp4j:*</include>
                         </includes>
                     </artifactSet>
                     <filters>
@@ -66,10 +67,6 @@
                         <relocation>
                             <pattern>app.ashcon.intake</pattern>
                             <shadedPattern>tc.oc.pgm.lib.app.ashcon.intake</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>net.kyori</pattern>
-                            <shadedPattern>tc.oc.pgm.lib.net.kyori</shadedPattern>
                         </relocation>
                         <relocation>
                             <pattern>fr.mrmicky</pattern>

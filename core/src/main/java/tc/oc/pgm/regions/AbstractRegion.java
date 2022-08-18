@@ -15,11 +15,11 @@ import org.bukkit.util.BlockVector;
 import org.bukkit.util.Vector;
 import tc.oc.pgm.api.filter.query.LocationQuery;
 import tc.oc.pgm.api.region.RegionDefinition;
-import tc.oc.pgm.filters.TypedFilter;
+import tc.oc.pgm.filters.matcher.TypedFilter;
 import tc.oc.pgm.util.block.BlockVectors;
 import tc.oc.pgm.util.event.PlayerCoarseMoveEvent;
 
-public abstract class AbstractRegion extends TypedFilter<LocationQuery>
+public abstract class AbstractRegion extends TypedFilter.Impl<LocationQuery>
     implements RegionDefinition {
 
   @Override
@@ -45,6 +45,11 @@ public abstract class AbstractRegion extends TypedFilter<LocationQuery>
   @Override
   public boolean contains(Entity entity) {
     return this.contains(entity.getLocation().toVector());
+  }
+
+  @Override
+  public boolean contains(LocationQuery query) {
+    return this.contains(query.getBlockCenter());
   }
 
   @Override
@@ -116,12 +121,12 @@ public abstract class AbstractRegion extends TypedFilter<LocationQuery>
   }
 
   @Override
-  public Class<? extends LocationQuery> getQueryType() {
+  public Class<? extends LocationQuery> queryType() {
     return LocationQuery.class;
   }
 
   @Override
-  protected QueryResponse queryTyped(LocationQuery query) {
-    return QueryResponse.fromBoolean(contains(query.getLocation()));
+  public boolean matches(LocationQuery query) {
+    return contains(query);
   }
 }

@@ -7,16 +7,19 @@ import static net.kyori.adventure.text.Component.translatable;
 import static tc.oc.pgm.util.text.TemporalComponent.clock;
 
 import app.ashcon.intake.Command;
-import com.google.common.collect.HashMultimap;
+import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import tc.oc.pgm.api.match.Match;
@@ -28,6 +31,7 @@ import tc.oc.pgm.ffa.FreeForAllMatchModule;
 import tc.oc.pgm.goals.Goal;
 import tc.oc.pgm.goals.GoalMatchModule;
 import tc.oc.pgm.goals.ProximityGoal;
+import tc.oc.pgm.goals.ShowOption;
 import tc.oc.pgm.score.ScoreMatchModule;
 import tc.oc.pgm.teams.Team;
 import tc.oc.pgm.teams.TeamMatchModule;
@@ -112,53 +116,59 @@ public final class MatchCommand {
                     NamedTextColor.WHITE))
             .build());
 
-    viewer.sendMessage(join(text(" | ", NamedTextColor.DARK_GRAY), teamCountParts));
+    viewer.sendMessage(
+        join(JoinConfiguration.separator(text(" | ", NamedTextColor.DARK_GRAY)), teamCountParts));
+
+    if (!haveGameInfo) return;
 
     GoalMatchModule gmm = match.getModule(GoalMatchModule.class);
-    if (haveGameInfo && gmm != null) {
-      if (tmm != null && gmm.getGoalsByCompetitor().size() > 0) {
-        Multimap<Team, Component> teamGoalTexts = HashMultimap.create();
+    if (gmm != null && tmm != null && gmm.getGoalsByCompetitor().size() > 0) {
+      Multimap<Team, Component> teamGoalTexts = LinkedHashMultimap.create();
+      Map<Goal<?>, Component> sharedGoalTexts = new LinkedHashMap<>();
 
-        MatchPlayer player = getMatchPlayer(sender, match);
+      MatchPlayer player = getMatchPlayer(sender, match);
+      Party viewingParty = player == null ? match.getDefaultParty() : player.getParty();
 
-        for (Team team : tmm.getParticipatingTeams()) {
-          for (Goal<?> goal : gmm.getGoals(team)) {
-            if (goal.isVisible()) {
-              if (player != null) {
-                teamGoalTexts.put(
-                    team, renderGoal(goal, player.getCompetitor(), player.getParty()));
-              } else {
-                teamGoalTexts.put(team, renderGoal(goal, null, match.getDefaultParty()));
-              }
+      for (Team team : tmm.getParticipatingTeams()) {
+        for (Goal<?> goal : gmm.getGoals(team)) {
+          if (goal.hasShowOption(ShowOption.SHOW_INFO)) {
+            if (goal.isShared()) {
+              sharedGoalTexts.computeIfAbsent(goal, g -> renderGoal(g, null, viewingParty));
+            } else if (player != null) {
+              teamGoalTexts.put(team, renderGoal(goal, player.getCompetitor(), viewingParty));
+            } else {
+              teamGoalTexts.put(team, renderGoal(goal, null, viewingParty));
             }
           }
         }
-
-        if (!teamGoalTexts.isEmpty()) {
-          viewer.sendMessage(
-              translatable("match.info.goals").append(text(":")).color(NamedTextColor.DARK_PURPLE));
-
-          for (Map.Entry<Team, Collection<Component>> entry : teamGoalTexts.asMap().entrySet()) {
-            Team team = entry.getKey();
-            Collection<Component> goalTexts = entry.getValue();
-
-            viewer.sendMessage(
-                text()
-                    .append(space())
-                    .append(space())
-                    .append(team.getName())
-                    .append(text(": ", NamedTextColor.GRAY))
-                    .append(join(text("  "), goalTexts))
-                    .build());
-          }
-        }
-      } else {
-        // FIXME: this is not the best way to handle scores
-        ScoreMatchModule smm = match.getModule(ScoreMatchModule.class);
-        if (smm != null) {
-          viewer.sendMessage(smm.getStatusMessage(getMatchPlayer(sender, match)));
-        }
       }
+
+      if (!teamGoalTexts.isEmpty() || !sharedGoalTexts.isEmpty()) {
+        viewer.sendMessage(
+            translatable("match.info.goals").append(text(":")).color(NamedTextColor.DARK_PURPLE));
+
+        // Team goals
+        for (Map.Entry<Team, Collection<Component>> entry : teamGoalTexts.asMap().entrySet()) {
+          Team team = entry.getKey();
+          Collection<Component> goalTexts = entry.getValue();
+
+          viewer.sendMessage(
+              text()
+                  .append(space())
+                  .append(space())
+                  .append(team.getName())
+                  .append(text(": ", NamedTextColor.GRAY))
+                  .append(join(JoinConfiguration.separator(text("  ")), goalTexts))
+                  .build());
+        }
+        // Shared goals
+        viewer.sendMessage(join(JoinConfiguration.separator(text("  ")), sharedGoalTexts.values()));
+      }
+    }
+
+    ScoreMatchModule smm = match.getModule(ScoreMatchModule.class);
+    if (smm != null) {
+      viewer.sendMessage(smm.getStatusMessage(getMatchPlayer(sender, match)));
     }
   }
 
@@ -176,13 +186,17 @@ public final class MatchCommand {
             goal.renderSidebarStatusText(competitor, viewingParty),
             TextFormatter.convert(goal.renderSidebarStatusColor(competitor, viewingParty))));
 
+    sb.append(space());
     if (goal instanceof ProximityGoal) {
-      sb.append(space());
-      // Show teams their own proximity on shared goals
-      sb.append(text(((ProximityGoal) goal).renderProximity(competitor, viewingParty)));
+      ProximityGoal<?> proxGoal = (ProximityGoal<?>) goal;
+      String proximityText = proxGoal.renderProximity(competitor, viewingParty);
+      if (proximityText != null && !proximityText.isEmpty()) {
+        ChatColor proximityColor = proxGoal.renderProximityColor(competitor, viewingParty);
+        sb.append(text(proximityText, TextFormatter.convert(proximityColor)));
+        sb.append(space());
+      }
     }
 
-    sb.append(space());
     sb.append(
         goal.renderSidebarLabelText(competitor, viewingParty)
             .color(TextFormatter.convert(goal.renderSidebarLabelColor(competitor, viewingParty))));

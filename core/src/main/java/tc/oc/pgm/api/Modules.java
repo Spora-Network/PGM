@@ -5,6 +5,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
+import tc.oc.pgm.action.ActionMatchModule;
+import tc.oc.pgm.action.ActionModule;
 import tc.oc.pgm.api.map.MapModule;
 import tc.oc.pgm.api.map.factory.MapModuleFactory;
 import tc.oc.pgm.api.match.MatchModule;
@@ -37,8 +39,8 @@ import tc.oc.pgm.fallingblocks.FallingBlocksMatchModule;
 import tc.oc.pgm.fallingblocks.FallingBlocksModule;
 import tc.oc.pgm.ffa.FreeForAllMatchModule;
 import tc.oc.pgm.ffa.FreeForAllModule;
+import tc.oc.pgm.filters.FilterMatchModule;
 import tc.oc.pgm.filters.FilterModule;
-import tc.oc.pgm.filters.dynamic.FilterMatchModule;
 import tc.oc.pgm.fireworks.FireworkMatchModule;
 import tc.oc.pgm.flag.FlagMatchModule;
 import tc.oc.pgm.flag.FlagModule;
@@ -192,6 +194,7 @@ public interface Modules {
     register(WoolModule.class, WoolMatchModule.class, new WoolModule.Factory());
     register(ScoreModule.class, ScoreMatchModule.class, new ScoreModule.Factory());
     register(KitModule.class, KitMatchModule.class, new KitModule.Factory());
+    register(ActionModule.class, ActionMatchModule.class, new ActionModule.Factory());
     register(
         ItemDestroyModule.class, ItemDestroyMatchModule.class, new ItemDestroyModule.Factory());
     register(ToolRepairModule.class, ToolRepairMatchModule.class, new ToolRepairModule.Factory());
